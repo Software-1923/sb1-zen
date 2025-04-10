@@ -1,189 +1,189 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Trophy } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Brain, Trophy, Timer, FunctionSquare as Function } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { generateEquations, type QuadraticEquation } from "@/lib/gemini";
 
-interface Tile {
+type MemoryCard = {
   id: number;
   content: string;
-  factor: number;
+  type: "equation" | "factors";
+  matchId: number;
   isFlipped: boolean;
   isMatched: boolean;
-  type: 'equation' | 'factor';
-}
+};
 
 export default function Home() {
-  const [tiles, setTiles] = useState<Tile[]>([]);
-  const [flipped, setFlipped] = useState<Tile[]>([]);
-  const [matches, setMatches] = useState<number>(0);
-  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [cards, setCards] = useState<MemoryCard[]>([]);
+  const [flippedCards, setFlippedCards] = useState<number[]>([]);
+  const [score, setScore] = useState(0);
+  const [bestScore, setBestScore] = useState(0);
+  const [timer, setTimer] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Generate a quadratic equation and its factors
-  const generateEquation = (): { equation: string; factor1: number; factor2: number } => {
-    let factor1 = Math.floor(Math.random() * 7) - 3;
-    let factor2 = Math.floor(Math.random() * 7) - 3;
-
-    // Avoid 0 and duplicate factors
-    while (factor1 === 0 || factor2 === 0 || factor1 === factor2) {
-      factor1 = Math.floor(Math.random() * 7) - 3;
-      factor2 = Math.floor(Math.random() * 7) - 3;
+  const initializeGame = async () => {
+    setLoading(true);
+    try {
+      const equations = await generateEquations(6);
+      const cardPairs = equations.flatMap((eq, index) => [
+        {
+          id: index * 2,
+          content: eq.equation,
+          type: "equation" as const,
+          matchId: index,
+          isFlipped: false,
+          isMatched: false,
+        },
+        {
+          id: index * 2 + 1,
+          content: eq.factors,
+          type: "factors" as const,
+          matchId: index,
+          isFlipped: false,
+          isMatched: false,
+        },
+      ]);
+      
+      const shuffledCards = cardPairs.sort(() => Math.random() - 0.5);
+      setCards(shuffledCards);
+      setFlippedCards([]);
+      setScore(0);
+      setTimer(0);
+      setGameStarted(true);
+    } catch (error) {
+      console.error("Failed to initialize game:", error);
+    } finally {
+      setLoading(false);
     }
-
-    const b = factor1 + factor2;
-    const c = factor1 * factor2;
-    const equation = `x² ${b >= 0 ? '+' : ''}${b}x ${c >= 0 ? '+' : ''}${c}`;
-
-    return { equation, factor1, factor2 };
-  };
-
-  // Initialize the game with shuffled tiles
-  const initializeGame = () => {
-    const pairs: Tile[] = [];
-    const numPairs = 6;
-
-    for (let i = 0; i < numPairs; i++) {
-      const { equation, factor1, factor2 } = generateEquation();
-
-      pairs.push(
-        {
-          id: i * 4,
-          content: equation,
-          factor: factor1,
-          isFlipped: false,
-          isMatched: false,
-          type: 'equation',
-        },
-        {
-          id: i * 4 + 1,
-          content: `x = ${factor1}`,
-          factor: factor1,
-          isFlipped: false,
-          isMatched: false,
-          type: 'factor',
-        },
-        {
-          id: i * 4 + 2,
-          content: equation,
-          factor: factor2,
-          isFlipped: false,
-          isMatched: false,
-          type: 'equation',
-        },
-        {
-          id: i * 4 + 3,
-          content: `x = ${factor2}`,
-          factor: factor2,
-          isFlipped: false,
-          isMatched: false,
-          type: 'factor',
-        }
-      );
-    }
-
-    // Shuffle the tiles
-    const shuffled = pairs.sort(() => Math.random() - 0.5);
-
-    setTiles(shuffled);
-    setFlipped([]);
-    setMatches(0);
-    setIsLocked(false);
   };
 
   useEffect(() => {
-    initializeGame();
-  }, []);
+    let interval: NodeJS.Timeout;
+    if (gameStarted && !loading) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [gameStarted, loading]);
 
-  // Handle tile click logic
-  const handleClick = (tile: Tile) => {
-    if (isLocked || tile.isMatched || flipped.some((t) => t.id === tile.id)) return;
+  const handleCardClick = (id: number) => {
+    if (flippedCards.length === 2) return;
+    if (cards.find((card) => card.id === id)?.isMatched) return;
+    if (flippedCards.includes(id)) return;
 
-    const newFlipped = [...flipped, tile];
-    setFlipped(newFlipped);
+    const newCards = cards.map((card) =>
+      card.id === id ? { ...card, isFlipped: true } : card
+    );
+    setCards(newCards);
+    setFlippedCards([...flippedCards, id]);
 
-    if (newFlipped.length === 2) {
-      setIsLocked(true);
-      const [first, second] = newFlipped;
+    if (flippedCards.length === 1) {
+      const firstCard = cards.find((card) => card.id === flippedCards[0])!;
+      const secondCard = cards.find((card) => card.id === id)!;
 
-      if (first.factor === second.factor && first.type !== second.type) {
+      if (firstCard.matchId === secondCard.matchId) {
         setTimeout(() => {
-          setTiles((prev) =>
-            prev.map((t) =>
-              t.id === first.id || t.id === second.id
-                ? { ...t, isMatched: true }
-                : t
+          setCards(
+            cards.map((card) =>
+              card.id === firstCard.id || card.id === secondCard.id
+                ? { ...card, isMatched: true }
+                : card
             )
           );
-          setMatches((prev) => prev + 1);
-          setFlipped([]);
-          setIsLocked(false);
-        }, 800);
-      } else {
-        setTimeout(() => {
-          setFlipped([]);
-          setIsLocked(false);
-        }, 800);
+          setScore((prev) => {
+            const newScore = prev + 1;
+            if (newScore > bestScore) setBestScore(newScore);
+            return newScore;
+          });
+        }, 500);
       }
+
+      setTimeout(() => {
+        setCards(
+          newCards.map((card) =>
+            !card.isMatched ? { ...card, isFlipped: false } : card
+          )
+        );
+        setFlippedCards([]);
+      }, 1500);
     }
   };
 
+  if (!cards.length) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary flex items-center justify-center">
+        <div className="text-center">
+          <Function className="w-16 h-16 text-primary mx-auto mb-4" />
+          <h1 className="text-3xl font-bold text-primary mb-4">Zenarith Memory Game</h1>
+          <Button onClick={initializeGame} disabled={loading} size="lg">
+            {loading ? "Loading..." : "Start Game"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-muted p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold text-primary">
-        Quadratic Equation Matching
-        </h1>
-        <div className="flex items-center gap-3">
-        <Badge variant="secondary" className="text-base px-3 py-1.5">
-          <Trophy className="w-4 h-4 mr-1 inline" />
-          {matches}/6 Matches
-        </Badge>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={initializeGame}
-          aria-label="Restart Game"
-        >
-          <RefreshCw className="w-5 h-5" />
-        </Button>
+    <div className="min-h-screen bg-gradient-to-b from-background to-secondary">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-2">
+            <Function className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold text-primary">Zenarith Memory Game</h1>
+          </div>
+          <Button onClick={initializeGame} disabled={loading}>
+            {loading ? "Loading..." : gameStarted ? "New Game" : "Start Game"}
+          </Button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {tiles.map((tile) => {
-        const isShowing = flipped.some((t) => t.id === tile.id) || tile.isMatched;
-        return (
-          <Card
-          key={tile.id}
-          onClick={() => handleClick(tile)}
-          className={`aspect-square flex items-center justify-center cursor-pointer transition-all duration-300
-          ${tile.isMatched ? 'opacity-50 pointer-events-none' : 'hover:scale-105'}
-          ${isShowing ? 'bg-primary/10' : 'bg-card'}
-          `}
-          >
-          <span className={`text-center font-semibold ${isShowing ? 'text-primary' : 'text-muted-foreground'}`}>
-            {isShowing ? tile.content : '?'}
-          </span>
+        <div className="grid grid-cols-2 gap-4 mb-8 sm:grid-cols-3">
+          <Card className="p-4 flex items-center gap-2">
+            <Trophy className="w-6 h-6 text-chart-1" />
+            <div>
+              <p className="text-sm text-muted-foreground">Best Score</p>
+              <p className="text-2xl font-bold">{bestScore}</p>
+            </div>
           </Card>
-        );
-        })}
-      </div>
-
-      {matches === 6 && (
-        <div className="text-center bg-primary/10 rounded-xl py-6 px-4">
-        <h2 className="text-xl font-bold text-primary mb-2">🎉 Congratulations!</h2>
-        <p className="text-muted-foreground mb-4">
-          You've matched all equations with their correct factors!
-        </p>
-        <Button onClick={initializeGame} className="bg-primary text-white hover:bg-primary/90">
-          Play Again
-        </Button>
+          <Card className="p-4 flex items-center gap-2">
+            <Trophy className="w-6 h-6 text-chart-2" />
+            <div>
+              <p className="text-sm text-muted-foreground">Current Score</p>
+              <p className="text-2xl font-bold">{score}</p>
+            </div>
+          </Card>
+          <Card className="p-4 flex items-center gap-2">
+            <Timer className="w-6 h-6 text-chart-3" />
+            <div>
+              <p className="text-sm text-muted-foreground">Time</p>
+              <p className="text-2xl font-bold">{timer}s</p>
+            </div>
+          </Card>
         </div>
-      )}
+
+        <div className="grid grid-cols-3 gap-4 md:grid-cols-4">
+          {cards.map((card) => (
+            <Card
+              key={card.id}
+              className={cn(
+                "aspect-[4/3] flex items-center justify-center p-4 text-lg font-bold cursor-pointer transition-all duration-300 hover:scale-105",
+                card.isFlipped || card.isMatched
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary"
+              )}
+              onClick={() => handleCardClick(card.id)}
+            >
+              {(card.isFlipped || card.isMatched) && (
+                <span className="text-center">{card.content}</span>
+              )}
+            </Card>
+          ))}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
