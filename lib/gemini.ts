@@ -44,7 +44,7 @@ export async function generateEquations(count: number): Promise<QuadraticEquatio
     try {
       const equations = JSON.parse(text);
       // Ensure we don't have duplicate equations
-      const uniqueEquations = Array.from(new Set(equations.map(JSON.stringify))).map((value: string) => JSON.parse(value));
+      const uniqueEquations = (Array.from(new Set(equations.map(JSON.stringify))) as string[]).map((value: string) => JSON.parse(value));
       return uniqueEquations.slice(0, count);
     } catch (parseError) {
       console.error("Failed to parse Gemini response:", parseError);
