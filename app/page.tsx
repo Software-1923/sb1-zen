@@ -131,10 +131,10 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-2">
             <Function className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold text-primary">Zenarith Memory Game</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">Zenarith Memory Game</h1>
           </div>
           <Button onClick={initializeGame} disabled={loading}>
             {loading ? "Loading..." : gameStarted ? "New Game" : "Start Game"}
@@ -165,12 +165,12 @@ export default function Home() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4">
           {cards.map((card) => (
             <Card
               key={card.id}
               className={cn(
-                "aspect-[4/3] flex items-center justify-center p-4 text-lg font-bold cursor-pointer transition-all duration-300 hover:scale-105",
+                "aspect-[4/3] flex items-center justify-center p-2 sm:p-4 cursor-pointer transition-all duration-300 hover:scale-105",
                 card.isFlipped || card.isMatched
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary"
@@ -178,7 +178,7 @@ export default function Home() {
               onClick={() => handleCardClick(card.id)}
             >
               {(card.isFlipped || card.isMatched) && (
-                <span className="text-center">{card.content}</span>
+                <span className="text-center text-sm sm:text-base md:text-lg font-bold break-words hyphens-auto">{card.content}</span>
               )}
             </Card>
           ))}

@@ -25,23 +25,31 @@ export async function generateEquations(count: number): Promise<QuadraticEquatio
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-pro-preview-03-25",
+    model: "gemini-2.0-flash",
     generationConfig: {
-      temperature: 1,
-      topP: 0.95,
-      topK: 64,
-      maxOutputTokens: 65536
+      temperature: 0.9,
+      topP: 0.8,
+      topK: 40,
+      maxOutputTokens: 2048,
     }
   });
 
-  const prompt = `Generate ${count} unique quadratic equations in the form ax² + bx + c with integer coefficients where a is 1 or -1, and their factors. Format each equation as a JSON object with "equation" and "factors" properties. The factors should be in the form (x+p)(x+q) where p and q are integers. Return only the JSON array.`;
+  const prompt = `Generate ${count} unique quadratic equations in the form ax² + bx + c with integer coefficients where a is 1 or -1, and their factors. Each equation should be different from the previous ones. Format each equation as a JSON object with "equation" and "factors" properties. The factors should be in the form (x+p)(x+q) where p and q are integers. Return only the JSON array.`;
 
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
     
-    return JSON.parse(text);
+    try {
+      const equations = JSON.parse(text);
+      // Ensure we don't have duplicate equations
+      const uniqueEquations = Array.from(new Set(equations.map(JSON.stringify))).map((value: string) => JSON.parse(value));
+      return uniqueEquations.slice(0, count);
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response:", parseError);
+      return mockEquations.slice(0, count);
+    }
   } catch (error) {
     console.error("Failed to generate equations:", error);
     return mockEquations.slice(0, count);
